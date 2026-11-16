@@ -1,4 +1,5 @@
 ﻿using Fundoo.User.Api.Contracts;
+using Fundoo.User.Api.Messaging;                                   // NEW
 using Fundoo.User.Application.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,7 +7,11 @@ namespace Fundoo.User.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(IAuthService auth, IForgotPasswordService forgotPassword) : ControllerBase
+public class AuthController(
+    IAuthService auth,
+    IForgotPasswordService forgotPassword,
+    IEventPublisher events,                                        // NEW
+    ILogger<AuthController> logger) : ControllerBase              // NEW
 {
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken ct)
@@ -14,6 +19,24 @@ public class AuthController(IAuthService auth, IForgotPasswordService forgotPass
         var result = await auth.RegisterAsync(request.FirstName, request.LastName, request.Email, request.Password, ct);
         if (!result.Succeeded)
             return Problem(statusCode: StatusCodes.Status409Conflict, title: result.Error);
+
+        // NEW: tell other services a user registered. Registration still succeeds if Kafka is down.
+        try
+        {
+            await events.PublishAsync(
+                "user.registered",
+                result.UserId.ToString(),
+                new UserRegisteredEvent(
+                    result.UserId,
+                    request.Email,
+                    request.FirstName,
+                    request.LastName,
+                    DateTime.UtcNow));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not publish user.registered for {UserId}", result.UserId);
+        }
 
         return StatusCode(StatusCodes.Status201Created);
     }

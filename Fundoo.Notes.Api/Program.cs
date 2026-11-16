@@ -2,6 +2,7 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Asp.Versioning;
 using Asp.Versioning.ApiExplorer;
+using Fundoo.Notes.Api.Messaging;                              // NEW (Kafka)
 using Fundoo.Notes.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -59,6 +60,9 @@ builder.Services.AddRateLimiter(o =>
 });
 
 builder.Services.AddControllers();
+
+// NEW (Kafka): background consumer that creates default labels when a user registers
+builder.Services.AddHostedService<UserRegisteredConsumer>();
 
 // ===== NEW: API versioning =====
 builder.Services
@@ -156,6 +160,8 @@ if (app.Environment.IsDevelopment())
                 $"/swagger/{description.GroupName}/swagger.json",
                 $"Fundoo Notes API {description.GroupName.ToUpperInvariant()}");
         }
+
+        options.EnablePersistAuthorization();   // NEW: token page reload / V1-V2 switch par bhi yaad rahega
     });
 }
 

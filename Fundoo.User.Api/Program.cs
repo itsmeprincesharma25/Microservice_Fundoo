@@ -1,8 +1,10 @@
+using Fundoo.User.Api.Messaging;                                         // NEW
 using Fundoo.User.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddUserInfrastructure(builder.Configuration);
+builder.Services.AddSingleton<IEventPublisher, KafkaEventPublisher>();   // NEW
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
