@@ -28,7 +28,7 @@ public class AuthService(IUserRepository users, IPasswordHasher hasher, ITokenSe
 
         await users.AddAsync(user, ct);
         await users.SaveChangesAsync(ct);
-        return AuthResult.Success();
+        return AuthResult.Success(userId: user.Id);   // NEW: return the new user's id
     }
 
     public async Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default)
