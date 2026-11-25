@@ -35,6 +35,10 @@ spec:
               value: "Fundoo Notes"
             - name: Smtp__FromAddress
               value: "noreply@fundoonotes.local"
+            - name: Smtp__Username
+              value: ""
+            - name: Smtp__Password
+              value: ""
             - name: Notification__ApiKey
               value: "FundooNotesSuperSecretInternalKey12345"
 ---

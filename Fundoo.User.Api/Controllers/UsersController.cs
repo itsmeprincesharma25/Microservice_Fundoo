@@ -86,7 +86,7 @@ public class UsersController : ControllerBase
         });
         await _kafkaProducer.ProduceAsync("user-events", user.Id.ToString(), eventPayload);
 
-        return Ok(new
+        return StatusCode(201, new
         {
             message = "User registered successfully!",
             user.Id,

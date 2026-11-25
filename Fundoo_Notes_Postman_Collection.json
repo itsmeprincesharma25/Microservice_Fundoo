@@ -17,7 +17,7 @@
     },
     {
       "key": "gatewayUrl",
-      "value": "https://localhost:7048",
+      "value": "http://20.219.26.38:30080",
       "type": "string"
     },
     {
