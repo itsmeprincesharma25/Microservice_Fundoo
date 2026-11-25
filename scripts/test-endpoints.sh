@@ -15,11 +15,11 @@ check() {
     local actual="$3"
     if echo "$actual" | grep -q "HTTP/$expected\|HTTP/1.1 $expected\|HTTP/2 $expected"; then
         echo "  ✅ $label → $expected"
-        ((PASS++))
+        PASS=$((PASS+1))
     else
         STATUS=$(echo "$actual" | grep -oP 'HTTP/\S+ \K\d+' | head -1)
         echo "  ❌ $label → expected $expected, got ${STATUS:-unknown}"
-        ((FAIL++))
+        FAIL=$((FAIL+1))
     fi
 }
 
