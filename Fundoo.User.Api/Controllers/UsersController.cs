@@ -50,7 +50,8 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> Register(
         [FromBody] RegisterRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = (request.Email ?? "").Trim().ToLowerInvariant();
+        var fullName = $"{request.FirstName?.Trim()} {request.LastName?.Trim()}".Trim();
 
         var existingUser = await _repository.GetByEmailAsync(email);
 
@@ -65,13 +66,13 @@ public class UsersController : ControllerBase
         var user = new UserEntity
         {
             Id = Guid.NewGuid(),
-            FullName = request.FullName.Trim(),
+            FullName = fullName,
             Email = email,
             CreatedAt = DateTime.UtcNow
         };
 
         user.PasswordHash =
-            _passwordHasher.HashPassword(user, request.Password);
+            _passwordHasher.HashPassword(user, request.Password ?? "");
 
         await _repository.CreateAsync(user);
 
@@ -128,6 +129,8 @@ public class UsersController : ControllerBase
         if (user.IsTwoFactorEnabled)
         {
             var code = RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+            var challengeId = Guid.NewGuid();
+            user.TwoFactorChallengeId = challengeId;
             user.TwoFactorCode = code;
             user.TwoFactorExpiryUtc = DateTime.UtcNow.AddMinutes(10);
             await _repository.UpdateUserAsync(user);
@@ -153,6 +156,7 @@ public class UsersController : ControllerBase
             return Ok(new
             {
                 requiresTwoFactor = true,
+                challengeId,
                 message = "Two-factor verification code has been sent to your email."
             });
         }
@@ -164,7 +168,7 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> ForgotPassword(
         [FromBody] ForgotPasswordRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = (request.Email ?? "").Trim().ToLowerInvariant();
         var user = await _repository.GetByEmailAsync(email);
 
         if (user == null)
@@ -209,23 +213,19 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> ResetPassword(
         [FromBody] ResetPasswordRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
-        var user = await _repository.GetByEmailAsync(email);
+        var token = (request.Token ?? "").Trim();
+        var user = await _repository.GetByResetTokenAsync(token);
 
-        if (user == null)
-        {
-            return BadRequest(new { message = "Invalid email or reset token." });
-        }
-
-        if (string.IsNullOrWhiteSpace(user.ResetPasswordToken) ||
-            user.ResetPasswordToken != request.Token.Trim() ||
+        if (user == null ||
+            string.IsNullOrWhiteSpace(user.ResetPasswordToken) ||
+            user.ResetPasswordToken != token ||
             user.ResetPasswordExpiryUtc < DateTime.UtcNow)
         {
             return BadRequest(new { message = "Invalid or expired password reset token." });
         }
 
         // Hash and update the new password
-        user.PasswordHash = _passwordHasher.HashPassword(user, request.NewPassword);
+        user.PasswordHash = _passwordHasher.HashPassword(user, request.Password ?? "");
         user.ResetPasswordToken = null;
         user.ResetPasswordExpiryUtc = null;
         await _repository.UpdateUserAsync(user);
@@ -239,12 +239,11 @@ public class UsersController : ControllerBase
         });
     }
 
-    [HttpPost("verify-2fa")]
+    [HttpPost("verify-two-factor")]
     public async Task<IActionResult> VerifyTwoFactor(
         [FromBody] VerifyTwoFactorRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
-        var user = await _repository.GetByEmailAsync(email);
+        var user = await _repository.GetByTwoFactorChallengeIdAsync(request.ChallengeId);
 
         if (user == null || !user.IsTwoFactorEnabled)
         {
@@ -257,6 +256,7 @@ public class UsersController : ControllerBase
         }
 
         // Reset 2FA code after successful verification
+        user.TwoFactorChallengeId = null;
         user.TwoFactorCode = null;
         user.TwoFactorExpiryUtc = null;
         await _repository.UpdateUserAsync(user);
@@ -264,8 +264,36 @@ public class UsersController : ControllerBase
         return await GenerateAuthResponseAsync(user);
     }
 
+    [HttpGet("google")]
+    public IActionResult GoogleLogin()
+    {
+        var clientId = _configuration["Google:ClientId"];
+        var redirectUri = _configuration["Google:RedirectUri"] ?? $"{Request.Scheme}://{Request.Host}/api/auth/google-callback";
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            return BadRequest(new { message = "Google OAuth ClientId is not configured." });
+        }
+        var url = $"https://accounts.google.com/o/oauth2/v2/auth?client_id={Uri.EscapeDataString(clientId)}&redirect_uri={Uri.EscapeDataString(redirectUri)}&response_type=code&scope=openid%20email%20profile";
+        return Redirect(url);
+    }
+
+    [HttpGet("google-callback")]
+    public IActionResult GoogleCallback([FromQuery] string? code, [FromQuery] string? error)
+    {
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            return BadRequest(new { message = $"Google authentication failed: {error}" });
+        }
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return BadRequest(new { message = "Authorization code is missing." });
+        }
+        return Ok(new { message = "Google callback received.", code });
+    }
+
     [Authorize]
     [HttpPost("toggle-2fa")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> ToggleTwoFactor(
         [FromBody] ToggleTwoFactorRequest request)
     {
@@ -285,6 +313,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("google-login")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> ExternalLogin(
         [FromBody] ExternalAuthRequest request)
     {
@@ -311,6 +340,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("refresh-token")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> RefreshToken(
         [FromBody] RefreshTokenRequest request)
     {
@@ -365,6 +395,7 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost("logout")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> Logout(
         [FromBody] RefreshTokenRequest request)
     {
@@ -383,6 +414,7 @@ public class UsersController : ControllerBase
 
     [Authorize]
     [HttpGet("sessions")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> GetActiveSessions()
     {
         var userId = CurrentUserId();
@@ -405,6 +437,7 @@ public class UsersController : ControllerBase
 
     [Authorize]
     [HttpPost("revoke-all-sessions")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> RevokeAllSessions()
     {
         var userId = CurrentUserId();

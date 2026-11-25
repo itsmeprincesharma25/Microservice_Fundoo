@@ -1,4 +1,6 @@
-﻿namespace Fundoo.Notes.Domain.Entities;
+﻿using System.Text.Json.Serialization;
+
+namespace Fundoo.Notes.Domain.Entities;
 
 public class Note
 {
@@ -13,5 +15,6 @@ public class Note
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 
+    [JsonIgnore]
     public List<NoteLabel> NoteLabels { get; set; } = new();
 }

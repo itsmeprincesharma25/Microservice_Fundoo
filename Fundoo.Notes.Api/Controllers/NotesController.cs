@@ -8,8 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fundoo.Notes.Api.Controllers;
 
 [ApiController]
-[Route("api/notes")]
+[Route("api/v1/notes")]
 [Authorize]
+[ApiExplorerSettings(GroupName = "v1")]
 public class NotesController : ControllerBase
 {
     private readonly INoteRepository _notes;
@@ -39,10 +40,10 @@ public class NotesController : ControllerBase
         var note = new Note
         {
             UserId = userId.Value,
-            Title = request.Title.Trim(),
-            Content = request.Content,
+            Title = (request.Title ?? "").Trim(),
+            Content = request.Content ?? "",
             Color = request.Color,
-            IsPinned = false
+            IsPinned = request.IsPinned
         };
 
         await _notes.CreateAsync(note, ct);
@@ -88,8 +89,8 @@ public class NotesController : ControllerBase
         {
             Id = id,
             UserId = userId.Value,
-            Title = request.Title.Trim(),
-            Content = request.Content,
+            Title = (request.Title ?? "").Trim(),
+            Content = request.Content ?? "",
             Color = request.Color,
             IsPinned = request.IsPinned
         };

@@ -25,6 +25,18 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == id, ct);
     }
 
+    public async Task<UserEntity?> GetByResetTokenAsync(string token, CancellationToken ct = default)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.ResetPasswordToken == token, ct);
+    }
+
+    public async Task<UserEntity?> GetByTwoFactorChallengeIdAsync(Guid challengeId, CancellationToken ct = default)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.TwoFactorChallengeId == challengeId, ct);
+    }
+
     public async Task<UserEntity> CreateAsync(UserEntity user)
     {
         _context.Users.Add(user);

@@ -11,9 +11,17 @@ builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOcelot(builder.Configuration);
+builder.Services.AddSwaggerForOcelot(builder.Configuration);
 
 var app = builder.Build();
+
+// SwaggerForOcelot UI must be registered BEFORE routing/endpoint middleware
+app.UseSwaggerForOcelotUI(opt =>
+{
+    opt.PathToSwaggerGenerator = "/swagger/docs";
+});
 
 app.UseRouting();
 
@@ -43,9 +51,9 @@ app.MapGet("/", () => Results.Content("""
     <table>
       <thead><tr><th>Gateway Path</th><th>Downstream Service</th><th>Swagger UI</th></tr></thead>
       <tbody>
-        <tr><td><code>/api/auth/*</code>, <code>/api/users/*</code></td><td>Fundoo.User.Api (<code>http://localhost:5249</code>)</td><td><a href="http://localhost:5249/swagger" target="_blank">User Swagger</a></td></tr>
-        <tr><td><code>/api/notes/*</code>, <code>/api/labels/*</code></td><td>Fundoo.Notes.Api (<code>http://localhost:5023</code>)</td><td><a href="http://localhost:5023/swagger" target="_blank">Notes Swagger</a></td></tr>
-        <tr><td><code>/api/notifications/*</code></td><td>Fundoo.Notification.Api (<code>http://localhost:5003</code>)</td><td><a href="http://localhost:5003/swagger" target="_blank">Notification Swagger</a></td></tr>
+        <tr><td><code>/api/auth/*</code>, <code>/api/users/*</code></td><td>Fundoo.User.Api</td><td><a href="/swagger" target="_blank">Swagger UI</a></td></tr>
+        <tr><td><code>/api/v1/notes/*</code>, <code>/api/v2/notes/*</code>, <code>/api/labels/*</code></td><td>Fundoo.Notes.Api</td><td><a href="/swagger" target="_blank">Swagger UI</a></td></tr>
+        <tr><td><code>/api/notifications/*</code></td><td>Fundoo.Notification.Api</td><td><a href="/swagger" target="_blank">Swagger UI</a></td></tr>
       </tbody>
     </table>
   </div>
@@ -59,8 +67,10 @@ app.MapGet("/health", () => Results.Ok(new
     service = "Fundoo API Gateway (Ocelot & YARP Enabled)"
 }));
 
+// YARP handles API routes (matched by route table in appsettings.json)
 app.MapReverseProxy();
 
+// Ocelot handles anything not matched by YARP routes or Swagger middleware
 app.UseWhen(
     context => context.GetEndpoint() == null,
     branch => branch.UseOcelot().GetAwaiter().GetResult());

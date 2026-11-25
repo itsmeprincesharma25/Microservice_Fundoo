@@ -26,12 +26,16 @@ builder.Services.AddValidatorsFromAssemblyContaining<CreateNoteRequestValidator>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Fundoo Notes API", Version = "v1" });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Notes API", Version = "v1" });
+    options.SwaggerDoc("v2", new OpenApiInfo { Title = "Notes API", Version = "v2" });
+
+    options.DocInclusionPredicate((docName, apiDesc) =>
+        string.IsNullOrEmpty(apiDesc.GroupName) || apiDesc.GroupName == docName);
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Description = "JWT Authorization header using the Bearer scheme. Enter your token directly.",
+        Description = "Enter the access token returned by the login API.",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
@@ -187,32 +191,20 @@ catch (Exception ex)
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Swagger UI configuration
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint(
-            "/swagger/v1/swagger.json",
-            "Fundoo Notes API v1");
-
-        options.RoutePrefix = "swagger";
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Notes API v1");
+    options.SwaggerEndpoint("/swagger/v2/swagger.json", "Notes API v2");
+    options.RoutePrefix = "swagger";
+});
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new
 {
     service = "Fundoo.Notes.Api",
     status = "Healthy"
-}));
-
-// Middleware
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
+})).ExcludeFromDescription();
 
 app.UseAuthentication();
 app.UseAuthorization();

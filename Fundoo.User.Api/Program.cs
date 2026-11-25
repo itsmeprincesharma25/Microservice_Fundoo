@@ -28,7 +28,7 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Fundoo User API", Version = "v1" });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Fundoo.User.Api", Version = "1.0" });
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -153,6 +153,7 @@ try
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""AuthProvider"" text NOT NULL DEFAULT 'Local';
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ExternalProviderId"" text NULL;
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""IsTwoFactorEnabled"" boolean NOT NULL DEFAULT FALSE;
+        ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""TwoFactorChallengeId"" uuid NULL;
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""TwoFactorCode"" text NULL;
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""TwoFactorExpiryUtc"" timestamp with time zone NULL;
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ResetPasswordToken"" text NULL;
@@ -185,22 +186,15 @@ catch (Exception ex)
 // Global Exception Handling Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.MapGet("/health", () => Results.Ok(new
 {
     service = "Fundoo.User.Api",
     status = "Healthy"
-}));
+})).ExcludeFromDescription();
 
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
-}
 app.UseAuthentication();
 app.UseAuthorization();
 

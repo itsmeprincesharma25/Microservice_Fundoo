@@ -8,6 +8,10 @@ public interface IUserRepository
 
     Task<UserEntity?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
+    Task<UserEntity?> GetByResetTokenAsync(string token, CancellationToken ct = default);
+
+    Task<UserEntity?> GetByTwoFactorChallengeIdAsync(Guid challengeId, CancellationToken ct = default);
+
     Task<UserEntity> CreateAsync(UserEntity user);
 
     Task UpdateUserAsync(UserEntity user, CancellationToken ct = default);

@@ -100,7 +100,7 @@ curl -sf http://localhost:30080/health && echo ""
 echo "--- POST /api/auth/register ---"
 curl -si -X POST http://localhost:30080/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"fullName":"Deploy Test","email":"deploytest@fundoo.local","password":"Password@123"}' | head -5
+  -d '{"firstName":"Deploy","lastName":"Test","email":"deploytest@fundoo.local","password":"Password@123"}' | head -5
 
 echo ""
 echo "✅ Deploy complete! Run the full test suite with: bash scripts/test-endpoints.sh"

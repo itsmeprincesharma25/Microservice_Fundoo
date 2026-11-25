@@ -4,13 +4,9 @@ namespace Fundoo.User.Api.Models;
 
 public class VerifyTwoFactorRequest
 {
-    [Required]
-    [EmailAddress]
-    public string Email { get; set; } = string.Empty;
+    public Guid ChallengeId { get; set; }
 
-    [Required]
-    [StringLength(6, MinimumLength = 6)]
-    public string Code { get; set; } = string.Empty;
+    public string? Code { get; set; }
 }
 
 public class ToggleTwoFactorRequest

@@ -39,7 +39,7 @@ public class LabelsController : ControllerBase
         var label = await _labels.CreateAsync(new Label
         {
             UserId = userId.Value,
-            Name = request.Name
+            Name = request.Name ?? ""
         }, ct);
 
         if (label == null)
@@ -66,6 +66,7 @@ public class LabelsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public async Task<IActionResult> GetById(
         Guid id,
         CancellationToken ct)
@@ -81,7 +82,7 @@ public class LabelsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(
         Guid id,
-        [FromBody] UpdateLabelRequest request,
+        [FromBody] RenameLabelRequest request,
         CancellationToken ct)
     {
         var userId = CurrentUserId();
@@ -91,7 +92,7 @@ public class LabelsController : ControllerBase
         {
             Id = id,
             UserId = userId.Value,
-            Name = request.Name
+            Name = request.Name ?? ""
         }, ct);
 
         return success

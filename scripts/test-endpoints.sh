@@ -5,7 +5,7 @@
 # ============================================================
 set -e
 
-BASE="http://localhost:30080"
+BASE="${1:-http://localhost:30080}"
 PASS=0
 FAIL=0
 
@@ -37,7 +37,7 @@ TEST_PASS="Password@123"
 
 REGISTER=$(curl -si -X POST "$BASE/api/auth/register" \
   -H "Content-Type: application/json" \
-  -d "{\"fullName\":\"E2E User\",\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASS\"}")
+  -d "{\"firstName\":\"E2E\",\"lastName\":\"User\",\"email\":\"$TEST_EMAIL\",\"password\":\"$TEST_PASS\"}")
 check "POST /api/auth/register → 201" "201" "$REGISTER"
 
 LOGIN=$(curl -si -X POST "$BASE/api/auth/login" \
@@ -77,61 +77,64 @@ echo ""
 echo "[ NOTES ENDPOINTS ]"
 
 # Create note
-CREATE=$(curl -si -X POST "$BASE/api/notes" \
+CREATE=$(curl -si -X POST "$BASE/api/v1/notes" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"title":"E2E Note","content":"Testing all endpoints"}')
-check "POST /api/notes → 201" "201" "$CREATE"
+  -d '{"title":"E2E Note","content":"Testing all endpoints","isPinned":false}')
+check "POST /api/v1/notes → 201" "201" "$CREATE"
 
 NOTE_ID=$(echo "$CREATE" | sed -n '/^\r\?$/,$p' | tail -n +2 | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null)
 echo "  📝 Note ID: $NOTE_ID"
 
-# GET all notes
-GET_ALL=$(curl -si "$BASE/api/notes" -H "Authorization: Bearer $TOKEN")
-check "GET /api/notes → 200" "200" "$GET_ALL"
+# GET all notes (v1 and v2)
+GET_ALL=$(curl -si "$BASE/api/v1/notes" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/notes → 200" "200" "$GET_ALL"
+
+GET_V2=$(curl -si "$BASE/api/v2/notes" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v2/notes → 200" "200" "$GET_V2"
 
 # GET by ID
-GET_ONE=$(curl -si "$BASE/api/notes/$NOTE_ID" -H "Authorization: Bearer $TOKEN")
-check "GET /api/notes/{id} → 200" "200" "$GET_ONE"
+GET_ONE=$(curl -si "$BASE/api/v1/notes/$NOTE_ID" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/notes/{id} → 200" "200" "$GET_ONE"
 
 # Update note
-UPDATE=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID" \
+UPDATE=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Updated E2E Note","content":"Updated content","isPinned":false}')
-check "PUT /api/notes/{id} → 204" "204" "$UPDATE"
+check "PUT /api/v1/notes/{id} → 204" "204" "$UPDATE"
 
 # Archive / Unarchive
-ARCH=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID/archive" -H "Authorization: Bearer $TOKEN")
-check "PUT /api/notes/{id}/archive → 204" "204" "$ARCH"
+ARCH=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID/archive" -H "Authorization: Bearer $TOKEN")
+check "PUT /api/v1/notes/{id}/archive → 204" "204" "$ARCH"
 
-GET_ARCH=$(curl -si "$BASE/api/notes/archived" -H "Authorization: Bearer $TOKEN")
-check "GET /api/notes/archived → 200" "200" "$GET_ARCH"
+GET_ARCH=$(curl -si "$BASE/api/v1/notes/archived" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/notes/archived → 200" "200" "$GET_ARCH"
 
-UNARCH=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID/unarchive" -H "Authorization: Bearer $TOKEN")
-check "PUT /api/notes/{id}/unarchive → 204" "204" "$UNARCH"
+UNARCH=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID/unarchive" -H "Authorization: Bearer $TOKEN")
+check "PUT /api/v1/notes/{id}/unarchive → 204" "204" "$UNARCH"
 
 # Pin note (via update)
-PIN=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID" \
+PIN=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Pinned Note","content":"Pinned","isPinned":true}')
-check "PUT /api/notes/{id} (pin) → 204" "204" "$PIN"
+check "PUT /api/v1/notes/{id} (pin) → 204" "204" "$PIN"
 
 # Trash / Restore / Delete
-TRASH=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID/trash" -H "Authorization: Bearer $TOKEN")
-check "PUT /api/notes/{id}/trash → 204" "204" "$TRASH"
+TRASH=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID/trash" -H "Authorization: Bearer $TOKEN")
+check "PUT /api/v1/notes/{id}/trash → 204" "204" "$TRASH"
 
-GET_TRASH=$(curl -si "$BASE/api/notes/trash" -H "Authorization: Bearer $TOKEN")
-check "GET /api/notes/trash → 200" "200" "$GET_TRASH"
+GET_TRASH=$(curl -si "$BASE/api/v1/notes/trash" -H "Authorization: Bearer $TOKEN")
+check "GET /api/v1/notes/trash → 200" "200" "$GET_TRASH"
 
-RESTORE=$(curl -si -X PUT "$BASE/api/notes/$NOTE_ID/restore" -H "Authorization: Bearer $TOKEN")
-check "PUT /api/notes/{id}/restore → 204" "204" "$RESTORE"
+RESTORE=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE_ID/restore" -H "Authorization: Bearer $TOKEN")
+check "PUT /api/v1/notes/{id}/restore → 204" "204" "$RESTORE"
 
 # Trash again then permanently delete
-curl -s -X PUT "$BASE/api/notes/$NOTE_ID/trash" -H "Authorization: Bearer $TOKEN" > /dev/null
-DEL=$(curl -si -X DELETE "$BASE/api/notes/$NOTE_ID" -H "Authorization: Bearer $TOKEN")
-check "DELETE /api/notes/{id} (trashed) → 204" "204" "$DEL"
+curl -s -X PUT "$BASE/api/v1/notes/$NOTE_ID/trash" -H "Authorization: Bearer $TOKEN" > /dev/null
+DEL=$(curl -si -X DELETE "$BASE/api/v1/notes/$NOTE_ID" -H "Authorization: Bearer $TOKEN")
+check "DELETE /api/v1/notes/{id} (trashed) → 204" "204" "$DEL"
 
 # ── Labels ────────────────────────────────────────────────
 echo ""
@@ -163,17 +166,17 @@ UPD_LBL=$(curl -si -X PUT "$BASE/api/labels/$LABEL_ID" \
 check "PUT /api/labels/{id} → 204" "204" "$UPD_LBL"
 
 # Create a note, attach label, detach label
-NOTE2_BODY=$(curl -s -X POST "$BASE/api/notes" \
+NOTE2_BODY=$(curl -s -X POST "$BASE/api/v1/notes" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"title":"Labeled Note","content":"For label attach test"}')
+  -d '{"title":"Labeled Note","content":"For label attach test","isPinned":false}')
 NOTE2_ID=$(echo "$NOTE2_BODY" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null)
 
-ATTACH=$(curl -si -X PUT "$BASE/api/notes/$NOTE2_ID/labels/$LABEL_ID" -H "Authorization: Bearer $TOKEN")
-check "PUT /api/notes/{id}/labels/{labelId} → 204" "204" "$ATTACH"
+ATTACH=$(curl -si -X PUT "$BASE/api/v1/notes/$NOTE2_ID/labels/$LABEL_ID" -H "Authorization: Bearer $TOKEN")
+check "PUT /api/v1/notes/{id}/labels/{labelId} → 204" "204" "$ATTACH"
 
-DETACH=$(curl -si -X DELETE "$BASE/api/notes/$NOTE2_ID/labels/$LABEL_ID" -H "Authorization: Bearer $TOKEN")
-check "DELETE /api/notes/{id}/labels/{labelId} → 204" "204" "$DETACH"
+DETACH=$(curl -si -X DELETE "$BASE/api/v1/notes/$NOTE2_ID/labels/$LABEL_ID" -H "Authorization: Bearer $TOKEN")
+check "DELETE /api/v1/notes/{id}/labels/{labelId} → 204" "204" "$DETACH"
 
 # Delete label
 DEL_LBL=$(curl -si -X DELETE "$BASE/api/labels/$LABEL_ID" -H "Authorization: Bearer $TOKEN")
