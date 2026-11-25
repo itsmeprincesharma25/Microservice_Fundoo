@@ -55,6 +55,7 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(IEnumerable<Note>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var userId = CurrentUserId();
@@ -118,6 +119,7 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet("archived")]
+    [ProducesResponseType(typeof(IEnumerable<Note>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Archived(CancellationToken ct)
     {
         var userId = CurrentUserId();
@@ -127,6 +129,7 @@ public class NotesController : ControllerBase
     }
 
     [HttpGet("trash")]
+    [ProducesResponseType(typeof(IEnumerable<Note>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Trash(CancellationToken ct)
     {
         var userId = CurrentUserId();
@@ -136,12 +139,14 @@ public class NotesController : ControllerBase
     }
 
     [HttpPut("{id:guid}/archive")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public Task<IActionResult> Archive(
         Guid id,
         CancellationToken ct)
         => ChangeArchive(id, true, ct);
 
     [HttpPut("{id:guid}/unarchive")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public Task<IActionResult> Unarchive(
         Guid id,
         CancellationToken ct)
@@ -162,12 +167,14 @@ public class NotesController : ControllerBase
     }
 
     [HttpPut("{id:guid}/trash")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public Task<IActionResult> MoveToTrash(
         Guid id,
         CancellationToken ct)
         => ChangeTrash(id, true, ct);
 
     [HttpPut("{id:guid}/restore")]
+    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     public Task<IActionResult> Restore(
         Guid id,
         CancellationToken ct)
@@ -187,10 +194,7 @@ public class NotesController : ControllerBase
             : NotFound();
     }
 
-    // Word file specifies PUT for attaching a label.
-    // POST is retained for backward compatibility with the old route.
     [HttpPut("{noteId:guid}/labels/{labelId:guid}")]
-    [HttpPost("{noteId:guid}/labels/{labelId:guid}")]
     public async Task<IActionResult> AddLabel(
         Guid noteId,
         Guid labelId,

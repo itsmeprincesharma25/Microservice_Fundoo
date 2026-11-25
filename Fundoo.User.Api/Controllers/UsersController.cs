@@ -15,6 +15,7 @@ namespace Fundoo.User.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[Tags("Auth")]
 public class UsersController : ControllerBase
 {
     private readonly IUserRepository _repository;
@@ -100,7 +101,7 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> Login(
         [FromBody] LoginRequest request)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        var email = (request.Email ?? "").Trim().ToLowerInvariant();
 
         var user = await _repository.GetByEmailAsync(email);
 
@@ -115,7 +116,7 @@ public class UsersController : ControllerBase
         var result = _passwordHasher.VerifyHashedPassword(
             user,
             user.PasswordHash,
-            request.Password);
+            request.Password ?? "");
 
         if (result == PasswordVerificationResult.Failed)
         {
@@ -278,8 +279,10 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("google-callback")]
-    public IActionResult GoogleCallback([FromQuery] string? code, [FromQuery] string? error)
+    public IActionResult GoogleCallback()
     {
+        var code = Request.Query["code"].ToString();
+        var error = Request.Query["error"].ToString();
         if (!string.IsNullOrWhiteSpace(error))
         {
             return BadRequest(new { message = $"Google authentication failed: {error}" });

@@ -204,7 +204,7 @@ app.MapGet("/health", () => Results.Ok(new
 {
     service = "Fundoo.Notes.Api",
     status = "Healthy"
-})).ExcludeFromDescription();
+})).WithMetadata(new Microsoft.AspNetCore.Mvc.ApiExplorerSettingsAttribute { GroupName = "v1" });
 
 app.UseAuthentication();
 app.UseAuthorization();
