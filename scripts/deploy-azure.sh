@@ -43,7 +43,7 @@ echo "✅ fundoo-notification:live built"
 
 # Gateway
 docker build \
-  --build-arg PROJECT_PATH="WebApplication1/WebApplication1.csproj" \
+  --build-arg PROJECT_PATH="WebApplication1/Fundoo.ApiGateway.csproj" \
   -t "$DOCKER_USER/fundoo-gateway:$TAG" \
   -f Dockerfile .
 echo "✅ fundoo-gateway:live built"
