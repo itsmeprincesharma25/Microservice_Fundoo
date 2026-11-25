@@ -9,6 +9,7 @@ namespace Fundoo.Notes.Api.Controllers;
 [Route("api/v2/notes")]
 [Authorize]
 [ApiExplorerSettings(GroupName = "v2")]
+[Tags("NotesV")]
 public class NotesV2Controller : ControllerBase
 {
     private readonly INoteRepository _notes;
