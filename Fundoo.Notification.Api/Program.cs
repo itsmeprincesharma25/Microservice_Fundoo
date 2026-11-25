@@ -2,6 +2,7 @@ using Fundoo.Notification.Api.Middleware;
 using Fundoo.Notification.Api.Security;
 using Fundoo.Notification.Api.Services;
 using Fundoo.Notification.Infrastructure;
+using Fundoo.Notification.Infrastructure.Data;
 using Microsoft.OpenApi.Models;
 using NLog.Web;
 
@@ -40,6 +41,18 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    await db.Database.EnsureCreatedAsync();
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogWarning(ex, "Could not automatically initialize Notification database schema: {Message}", ex.Message);
+}
+
 // Global Exception Handling Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
@@ -49,7 +62,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok("Healthy"));
 app.Run();

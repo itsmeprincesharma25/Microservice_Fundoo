@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notes-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notes-api
+  template:
+    metadata:
+      labels:
+        app: notes-api
+    spec:
+      containers:
+        - name: notes-api
+          image: princesharma25/fundoo-notes:live
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__NotesDb
+              value: "Host=postgres-service;Port=5432;Database=fundoo_notes;Username=postgres;Password=FundooNotes@2026"
+            - name: ConnectionStrings__Redis
+              value: "redis-service:6379"
+            - name: Jwt__Key
+              value: "FundooUserApi_Dev_Secret_Key_2026_AtLeast32Bytes!"
+            - name: Jwt__Issuer
+              value: "FundooUserApi"
+            - name: Jwt__Audience
+              value: "FundooClient"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notes-service
+spec:
+  selector:
+    app: notes-api
+  ports:
+    - port: 80
+      targetPort: 8080

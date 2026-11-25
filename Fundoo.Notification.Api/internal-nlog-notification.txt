@@ -42,3 +42,27 @@
 2026-11-23 12:26:59.8592 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
 2026-11-23 12:26:59.8675 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
 2026-11-23 12:26:59.8912 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\LEGION\source\repos\Solution2\Fundoo.Notification.Api\nlog.config
+2026-11-25 09:45:38.8945 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 09:45:38.9068 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 09:45:38.9068 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 09:45:38.9361 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=C:\Users\LEGION\source\repos\Solution2\Fundoo.Notification.Api\nlog.config
+2026-11-25 10:05:10.2114 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 10:05:10.2378 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 10:05:10.2401 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 10:05:10.2720 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=/Users/princesharma/Desktop/Solution2/Fundoo.Notification.Api/nlog.config
+2026-11-25 10:07:19.2096 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 10:07:19.2344 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 10:07:19.2379 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 10:07:19.2726 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=/Users/princesharma/Desktop/Solution2/Fundoo.Notification.Api/nlog.config
+2026-11-25 10:14:02.8743 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 10:14:02.9104 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 10:14:02.9212 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 10:14:02.9772 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=/Users/princesharma/Desktop/Solution2/Fundoo.Notification.Api/nlog.config
+2026-11-25 10:17:04.1397 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 10:17:04.1691 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 10:17:04.1713 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 10:17:04.2059 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=/Users/princesharma/Desktop/Solution2/Fundoo.Notification.Api/nlog.config
+2026-11-25 10:17:35.3561 Info Registered target NLog.Targets.FileTarget(Name=allfile)
+2026-11-25 10:17:35.3707 Info Registered target NLog.Targets.ConsoleTarget(Name=lifetimeConsole)
+2026-11-25 10:17:35.3749 Info NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c. File version: 6.2.1.5860. Product version: 6.2.1+b058028290f245d12c30cb2910c2a574558ed9c6. GlobalAssemblyCache: False
+2026-11-25 10:17:35.4244 Info Configuration initialized: TargetNames=allfile, lifetimeConsole, ConfigItems=34, AutoReload=true, FilePath=/Users/princesharma/Desktop/Solution2/Fundoo.Notification.Api/nlog.config

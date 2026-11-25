@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-api
+  template:
+    metadata:
+      labels:
+        app: notification-api
+    spec:
+      containers:
+        - name: notification-api
+          image: princesharma25/fundoo-notification:live
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__NotificationDb
+              value: "Host=postgres-service;Port=5432;Database=FundooNotificationDb;Username=postgres;Password=FundooNotes@2026"
+            - name: Smtp__Host
+              value: "smtp.gmail.com"
+            - name: Smtp__Port
+              value: "587"
+            - name: Smtp__EnableSsl
+              value: "true"
+            - name: Smtp__FromName
+              value: "Fundoo Notes"
+            - name: Smtp__FromAddress
+              value: "noreply@fundoonotes.local"
+            - name: Notification__ApiKey
+              value: "FundooNotesSuperSecretInternalKey12345"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-api
+  ports:
+    - port: 80
+      targetPort: 8080

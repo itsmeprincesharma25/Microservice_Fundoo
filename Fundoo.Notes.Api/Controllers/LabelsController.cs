@@ -50,7 +50,10 @@ public class LabelsController : ControllerBase
             });
         }
 
-        return Ok(label);
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id = label.Id },
+            label);
     }
 
     [HttpGet]

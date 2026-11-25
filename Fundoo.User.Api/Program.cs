@@ -143,11 +143,12 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Auto-migrate missing columns and tables in PostgreSQL database
+// Auto-migrate database schema and missing columns/tables in PostgreSQL
 try
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+    await db.Database.MigrateAsync();
     await db.Database.ExecuteSqlRawAsync(@"
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""AuthProvider"" text NOT NULL DEFAULT 'Local';
         ALTER TABLE ""Users"" ADD COLUMN IF NOT EXISTS ""ExternalProviderId"" text NULL;
@@ -196,7 +197,10 @@ app.MapGet("/health", () => Results.Ok(new
     status = "Healthy"
 }));
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 

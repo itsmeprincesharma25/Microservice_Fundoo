@@ -9,6 +9,7 @@ using Fundoo.Notes.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using NLog.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -133,6 +134,55 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Ensure Notes schema exists in PostgreSQL
+try
+{
+    var connectionFactory = app.Services.GetRequiredService<NotesConnectionFactory>();
+    await using var conn = connectionFactory.CreateConnection();
+    await conn.OpenAsync();
+    const string initSql = """
+        CREATE TABLE IF NOT EXISTS "Notes"
+        (
+            "Id" UUID PRIMARY KEY,
+            "UserId" UUID NOT NULL,
+            "Title" VARCHAR(200) NOT NULL,
+            "Content" TEXT NOT NULL,
+            "Color" VARCHAR(30) NULL,
+            "IsPinned" BOOLEAN NOT NULL DEFAULT FALSE,
+            "IsArchived" BOOLEAN NOT NULL DEFAULT FALSE,
+            "IsTrashed" BOOLEAN NOT NULL DEFAULT FALSE,
+            "CreatedAtUtc" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            "UpdatedAtUtc" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS "IX_Notes_UserId" ON "Notes" ("UserId");
+
+        CREATE TABLE IF NOT EXISTS "Labels"
+        (
+            "Id" UUID PRIMARY KEY,
+            "UserId" UUID NOT NULL,
+            "Name" VARCHAR(100) NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Labels_UserId_Name" ON "Labels" ("UserId", "Name");
+
+        CREATE TABLE IF NOT EXISTS "NoteLabels"
+        (
+            "NoteId" UUID NOT NULL,
+            "LabelId" UUID NOT NULL,
+            CONSTRAINT "PK_NoteLabels" PRIMARY KEY ("NoteId", "LabelId"),
+            CONSTRAINT "FK_NoteLabels_Notes_NoteId" FOREIGN KEY ("NoteId") REFERENCES "Notes" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_NoteLabels_Labels_LabelId" FOREIGN KEY ("LabelId") REFERENCES "Labels" ("Id") ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS "IX_NoteLabels_LabelId" ON "NoteLabels" ("LabelId");
+        """;
+    await using var cmd = new NpgsqlCommand(initSql, conn);
+    await cmd.ExecuteNonQueryAsync();
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogWarning(ex, "Could not automatically initialize Notes database schema: {Message}", ex.Message);
+}
+
 // Global Exception Handling Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
@@ -159,7 +209,10 @@ app.MapGet("/health", () => Results.Ok(new
 }));
 
 // Middleware
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

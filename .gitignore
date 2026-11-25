@@ -1,4 +1,12 @@
 ﻿.vs/
+.idea/
+.local/
+Library/
 **/bin/
 **/obj/
 **/secrets.json
+logs/
+*.log
+internal-nlog-*.txt
+*.user
+.DS_Store
