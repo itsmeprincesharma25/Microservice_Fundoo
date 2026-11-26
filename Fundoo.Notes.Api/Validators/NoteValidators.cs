@@ -41,3 +41,16 @@ public class CreateLabelRequestValidator : AbstractValidator<CreateLabelRequest>
             .MaximumLength(100).WithMessage("Label name cannot exceed 100 characters.");
     }
 }
+
+public class ShareNoteRequestValidator : AbstractValidator<ShareNoteRequest>
+{
+    public ShareNoteRequestValidator()
+    {
+        RuleFor(x => x.CollaboratorUserId)
+            .NotEmpty().WithMessage("CollaboratorUserId is required.");
+
+        RuleFor(x => x.Permission)
+            .Must(p => p == null || Fundoo.Notes.Domain.Entities.CollaboratorPermissions.IsValid(p))
+            .WithMessage("Permission must be 'Read' or 'Edit'.");
+    }
+}

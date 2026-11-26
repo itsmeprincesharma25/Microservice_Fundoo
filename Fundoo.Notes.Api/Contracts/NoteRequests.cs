@@ -33,3 +33,10 @@ public class RenameLabelRequest
 {
     public string? Name { get; set; }
 }
+
+public class ShareNoteRequest
+{
+    public Guid CollaboratorUserId { get; set; }
+
+    public string? Permission { get; set; }
+}

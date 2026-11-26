@@ -67,9 +67,21 @@ public class NoteRepository : INoteRepository
         CancellationToken ct)
     {
         const string sql = """
-            SELECT *
-            FROM "Notes"
-            WHERE "Id" = @Id AND "UserId" = @UserId;
+            SELECT n.*
+            FROM "Notes" n
+            WHERE n."Id" = @Id
+              AND (
+                    n."UserId" = @UserId
+                    OR (
+                        n."IsTrashed" = FALSE
+                        AND EXISTS (
+                            SELECT 1
+                            FROM "NoteCollaborators" nc
+                            WHERE nc."NoteId" = n."Id"
+                              AND nc."CollaboratorUserId" = @UserId
+                        )
+                    )
+              );
             """;
 
         await using var connection =
@@ -104,12 +116,15 @@ public class NoteRepository : INoteRepository
         CancellationToken ct)
     {
         const string sql = """
-            SELECT *
-            FROM "Notes"
-            WHERE "UserId" = @UserId
-              AND "IsArchived" = FALSE
-              AND "IsTrashed" = FALSE
-            ORDER BY "IsPinned" DESC, "UpdatedAtUtc" DESC;
+            SELECT DISTINCT n.*
+            FROM "Notes" n
+            LEFT JOIN "NoteCollaborators" nc
+                ON nc."NoteId" = n."Id"
+               AND nc."CollaboratorUserId" = @UserId
+            WHERE (n."UserId" = @UserId OR nc."CollaboratorUserId" IS NOT NULL)
+              AND n."IsArchived" = FALSE
+              AND n."IsTrashed" = FALSE
+            ORDER BY n."IsPinned" DESC, n."UpdatedAtUtc" DESC;
             """;
 
         return await GetNotesAsync(sql, userId, ct);
@@ -183,14 +198,26 @@ public class NoteRepository : INoteRepository
         CancellationToken ct)
     {
         const string sql = """
-            UPDATE "Notes"
+            UPDATE "Notes" n
             SET "Title" = @Title,
                 "Content" = @Content,
                 "Color" = @Color,
                 "IsPinned" = @IsPinned,
                 "UpdatedAtUtc" = @UpdatedAtUtc
-            WHERE "Id" = @Id
-              AND "UserId" = @UserId;
+            WHERE n."Id" = @Id
+              AND (
+                    n."UserId" = @UserId
+                    OR (
+                        n."IsTrashed" = FALSE
+                        AND EXISTS (
+                            SELECT 1
+                            FROM "NoteCollaborators" nc
+                            WHERE nc."NoteId" = n."Id"
+                              AND nc."CollaboratorUserId" = @UserId
+                              AND LOWER(COALESCE(NULLIF(TRIM(nc."Permission"), ''), 'read')) = 'edit'
+                        )
+                    )
+              );
             """;
 
         await using var connection =
@@ -483,5 +510,325 @@ public class NoteRepository : INoteRepository
                 }
             });
         }
+    }
+
+    public async Task<NoteAccessInfo> GetAccessAsync(
+        Guid noteId,
+        Guid userId,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT
+                n."UserId" = @UserId AS "IsOwner",
+                n."IsTrashed",
+                nc."Permission"
+            FROM "Notes" n
+            LEFT JOIN "NoteCollaborators" nc
+                ON nc."NoteId" = n."Id"
+               AND nc."CollaboratorUserId" = @UserId
+            WHERE n."Id" = @NoteId;
+            """;
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("NoteId", noteId);
+        command.Parameters.AddWithValue("UserId", userId);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+        {
+            return new NoteAccessInfo(false, false, null);
+        }
+
+        var isOwner = reader.GetBoolean(reader.GetOrdinal("IsOwner"));
+        var isTrashed = reader.GetBoolean(reader.GetOrdinal("IsTrashed"));
+        var hasCollab = !reader.IsDBNull(reader.GetOrdinal("Permission"));
+
+        if (isOwner)
+        {
+            return new NoteAccessInfo(true, true, "Owner");
+        }
+
+        if (!hasCollab || isTrashed)
+        {
+            return new NoteAccessInfo(false, false, null);
+        }
+
+        var rawPermission = reader.GetString(reader.GetOrdinal("Permission"));
+        return new NoteAccessInfo(true, false, CollaboratorPermissions.Normalize(rawPermission));
+    }
+
+    public async Task<List<NoteCollaborator>> GetCollaboratorsAsync(
+        Guid noteId,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT "Id", "NoteId", "CollaboratorUserId", "Permission", "CreatedAtUtc", "UpdatedAtUtc"
+            FROM "NoteCollaborators"
+            WHERE "NoteId" = @NoteId
+            ORDER BY "CreatedAtUtc" ASC;
+            """;
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("NoteId", noteId);
+
+        var list = new List<NoteCollaborator>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            list.Add(new NoteCollaborator
+            {
+                Id = reader.GetGuid(reader.GetOrdinal("Id")),
+                NoteId = reader.GetGuid(reader.GetOrdinal("NoteId")),
+                CollaboratorUserId = reader.GetGuid(reader.GetOrdinal("CollaboratorUserId")),
+                Permission = CollaboratorPermissions.Normalize(
+                    reader.IsDBNull(reader.GetOrdinal("Permission"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("Permission"))),
+                CreatedAtUtc = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc")),
+                UpdatedAtUtc = reader.GetDateTime(reader.GetOrdinal("UpdatedAtUtc"))
+            });
+        }
+
+        return list;
+    }
+
+    public async Task<NoteCollaborator?> UpsertCollaboratorAsync(
+        Guid noteId,
+        Guid ownerUserId,
+        Guid collaboratorUserId,
+        string permission,
+        CancellationToken ct)
+    {
+        var normalized = CollaboratorPermissions.Normalize(permission);
+        var now = DateTime.UtcNow;
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+
+        const string ownerSql = """
+            SELECT COUNT(1)
+            FROM "Notes"
+            WHERE "Id" = @NoteId AND "UserId" = @OwnerUserId;
+            """;
+        await using (var ownerCmd = new NpgsqlCommand(ownerSql, connection, transaction))
+        {
+            ownerCmd.Parameters.AddWithValue("NoteId", noteId);
+            ownerCmd.Parameters.AddWithValue("OwnerUserId", ownerUserId);
+            var count = (long)(await ownerCmd.ExecuteScalarAsync(ct) ?? 0L);
+            if (count == 0)
+            {
+                await transaction.RollbackAsync(ct);
+                return null;
+            }
+        }
+
+        Guid? existingId = null;
+        string? oldPermission = null;
+        DateTime existingCreatedAt = now;
+
+        const string existingSql = """
+            SELECT "Id", "Permission", "CreatedAtUtc"
+            FROM "NoteCollaborators"
+            WHERE "NoteId" = @NoteId AND "CollaboratorUserId" = @CollaboratorUserId;
+            """;
+        await using (var existingCmd = new NpgsqlCommand(existingSql, connection, transaction))
+        {
+            existingCmd.Parameters.AddWithValue("NoteId", noteId);
+            existingCmd.Parameters.AddWithValue("CollaboratorUserId", collaboratorUserId);
+            await using var reader = await existingCmd.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                existingId = reader.GetGuid(reader.GetOrdinal("Id"));
+                oldPermission = CollaboratorPermissions.Normalize(
+                    reader.IsDBNull(reader.GetOrdinal("Permission"))
+                        ? null
+                        : reader.GetString(reader.GetOrdinal("Permission")));
+                existingCreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAtUtc"));
+            }
+        }
+
+        var collab = new NoteCollaborator
+        {
+            Id = existingId ?? Guid.NewGuid(),
+            NoteId = noteId,
+            CollaboratorUserId = collaboratorUserId,
+            Permission = normalized,
+            CreatedAtUtc = existingCreatedAt,
+            UpdatedAtUtc = now
+        };
+
+        if (existingId == null)
+        {
+            const string insertCollabSql = """
+                INSERT INTO "NoteCollaborators"
+                ("Id", "NoteId", "CollaboratorUserId", "Permission", "CreatedAtUtc", "UpdatedAtUtc")
+                VALUES (@Id, @NoteId, @CollaboratorUserId, @Permission, @CreatedAtUtc, @UpdatedAtUtc);
+                """;
+            await using var insertCmd = new NpgsqlCommand(insertCollabSql, connection, transaction);
+            insertCmd.Parameters.AddWithValue("Id", collab.Id);
+            insertCmd.Parameters.AddWithValue("NoteId", noteId);
+            insertCmd.Parameters.AddWithValue("CollaboratorUserId", collaboratorUserId);
+            insertCmd.Parameters.AddWithValue("Permission", normalized);
+            insertCmd.Parameters.AddWithValue("CreatedAtUtc", now);
+            insertCmd.Parameters.AddWithValue("UpdatedAtUtc", now);
+            await insertCmd.ExecuteNonQueryAsync(ct);
+
+            await InsertSharingHistoryAsync(
+                connection, transaction, noteId, collaboratorUserId, ownerUserId,
+                "Added", null, normalized, now, ct);
+        }
+        else if (!string.Equals(oldPermission, normalized, StringComparison.OrdinalIgnoreCase))
+        {
+            const string updateCollabSql = """
+                UPDATE "NoteCollaborators"
+                SET "Permission" = @Permission, "UpdatedAtUtc" = @UpdatedAtUtc
+                WHERE "Id" = @Id;
+                """;
+            await using var updateCmd = new NpgsqlCommand(updateCollabSql, connection, transaction);
+            updateCmd.Parameters.AddWithValue("Id", collab.Id);
+            updateCmd.Parameters.AddWithValue("Permission", normalized);
+            updateCmd.Parameters.AddWithValue("UpdatedAtUtc", now);
+            await updateCmd.ExecuteNonQueryAsync(ct);
+
+            await InsertSharingHistoryAsync(
+                connection, transaction, noteId, collaboratorUserId, ownerUserId,
+                "PermissionChanged", oldPermission, normalized, now, ct);
+        }
+
+        await transaction.CommitAsync(ct);
+        return collab;
+    }
+
+    public async Task<bool> RemoveCollaboratorAsync(
+        Guid noteId,
+        Guid ownerUserId,
+        Guid collaboratorUserId,
+        CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+
+        const string findSql = """
+            SELECT nc."Permission"
+            FROM "NoteCollaborators" nc
+            INNER JOIN "Notes" n ON n."Id" = nc."NoteId"
+            WHERE nc."NoteId" = @NoteId
+              AND nc."CollaboratorUserId" = @CollaboratorUserId
+              AND n."UserId" = @OwnerUserId;
+            """;
+
+        string? oldPermission = null;
+        await using (var findCmd = new NpgsqlCommand(findSql, connection, transaction))
+        {
+            findCmd.Parameters.AddWithValue("NoteId", noteId);
+            findCmd.Parameters.AddWithValue("CollaboratorUserId", collaboratorUserId);
+            findCmd.Parameters.AddWithValue("OwnerUserId", ownerUserId);
+            var scalar = await findCmd.ExecuteScalarAsync(ct);
+            if (scalar == null)
+            {
+                await transaction.RollbackAsync(ct);
+                return false;
+            }
+            oldPermission = CollaboratorPermissions.Normalize(scalar == DBNull.Value ? null : (string)scalar);
+        }
+
+        const string deleteSql = """
+            DELETE FROM "NoteCollaborators"
+            WHERE "NoteId" = @NoteId AND "CollaboratorUserId" = @CollaboratorUserId;
+            """;
+        await using (var deleteCmd = new NpgsqlCommand(deleteSql, connection, transaction))
+        {
+            deleteCmd.Parameters.AddWithValue("NoteId", noteId);
+            deleteCmd.Parameters.AddWithValue("CollaboratorUserId", collaboratorUserId);
+            await deleteCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        await InsertSharingHistoryAsync(
+            connection, transaction, noteId, collaboratorUserId, ownerUserId,
+            "Removed", oldPermission, null, now, ct);
+
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+
+    public async Task<List<NoteSharingHistory>> GetSharingHistoryAsync(
+        Guid noteId,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT "Id", "NoteId", "CollaboratorUserId", "ChangedByUserId", "Action", "OldPermission", "NewPermission", "ChangedAtUtc"
+            FROM "NoteSharingHistory"
+            WHERE "NoteId" = @NoteId
+            ORDER BY "ChangedAtUtc" ASC;
+            """;
+
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync(ct);
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("NoteId", noteId);
+
+        var history = new List<NoteSharingHistory>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            history.Add(new NoteSharingHistory
+            {
+                Id = reader.GetGuid(reader.GetOrdinal("Id")),
+                NoteId = reader.GetGuid(reader.GetOrdinal("NoteId")),
+                CollaboratorUserId = reader.GetGuid(reader.GetOrdinal("CollaboratorUserId")),
+                ChangedByUserId = reader.GetGuid(reader.GetOrdinal("ChangedByUserId")),
+                Action = reader.GetString(reader.GetOrdinal("Action")),
+                OldPermission = reader.IsDBNull(reader.GetOrdinal("OldPermission"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("OldPermission")),
+                NewPermission = reader.IsDBNull(reader.GetOrdinal("NewPermission"))
+                    ? null
+                    : reader.GetString(reader.GetOrdinal("NewPermission")),
+                ChangedAtUtc = reader.GetDateTime(reader.GetOrdinal("ChangedAtUtc"))
+            });
+        }
+
+        return history;
+    }
+
+    private static async Task InsertSharingHistoryAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid noteId,
+        Guid collaboratorUserId,
+        Guid changedByUserId,
+        string action,
+        string? oldPermission,
+        string? newPermission,
+        DateTime changedAtUtc,
+        CancellationToken ct)
+    {
+        const string sql = """
+            INSERT INTO "NoteSharingHistory"
+            ("Id", "NoteId", "CollaboratorUserId", "ChangedByUserId", "Action", "OldPermission", "NewPermission", "ChangedAtUtc")
+            VALUES (@Id, @NoteId, @CollaboratorUserId, @ChangedByUserId, @Action, @OldPermission, @NewPermission, @ChangedAtUtc);
+            """;
+
+        await using var cmd = new NpgsqlCommand(sql, connection, transaction);
+        cmd.Parameters.AddWithValue("Id", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("NoteId", noteId);
+        cmd.Parameters.AddWithValue("CollaboratorUserId", collaboratorUserId);
+        cmd.Parameters.AddWithValue("ChangedByUserId", changedByUserId);
+        cmd.Parameters.AddWithValue("Action", action);
+        cmd.Parameters.AddWithValue("OldPermission", (object?)oldPermission ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("NewPermission", (object?)newPermission ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("ChangedAtUtc", changedAtUtc);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 }

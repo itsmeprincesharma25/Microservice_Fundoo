@@ -177,6 +177,35 @@ try
             CONSTRAINT "FK_NoteLabels_Labels_LabelId" FOREIGN KEY ("LabelId") REFERENCES "Labels" ("Id") ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS "IX_NoteLabels_LabelId" ON "NoteLabels" ("LabelId");
+
+        CREATE TABLE IF NOT EXISTS "NoteCollaborators"
+        (
+            "Id" UUID PRIMARY KEY,
+            "NoteId" UUID NOT NULL,
+            "CollaboratorUserId" UUID NOT NULL,
+            "Permission" VARCHAR(20) NOT NULL DEFAULT 'Read',
+            "CreatedAtUtc" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            "UpdatedAtUtc" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT "FK_NoteCollaborators_Notes_NoteId" FOREIGN KEY ("NoteId") REFERENCES "Notes" ("Id") ON DELETE CASCADE
+        );
+        ALTER TABLE "NoteCollaborators" ADD COLUMN IF NOT EXISTS "Permission" VARCHAR(20) NOT NULL DEFAULT 'Read';
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_NoteCollaborators_NoteId_CollaboratorUserId"
+            ON "NoteCollaborators" ("NoteId", "CollaboratorUserId");
+
+        CREATE TABLE IF NOT EXISTS "NoteSharingHistory"
+        (
+            "Id" UUID PRIMARY KEY,
+            "NoteId" UUID NOT NULL,
+            "CollaboratorUserId" UUID NOT NULL,
+            "ChangedByUserId" UUID NOT NULL,
+            "Action" VARCHAR(32) NOT NULL,
+            "OldPermission" VARCHAR(20) NULL,
+            "NewPermission" VARCHAR(20) NULL,
+            "ChangedAtUtc" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT "FK_NoteSharingHistory_Notes_NoteId" FOREIGN KEY ("NoteId") REFERENCES "Notes" ("Id") ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS "IX_NoteSharingHistory_NoteId_ChangedAtUtc"
+            ON "NoteSharingHistory" ("NoteId", "ChangedAtUtc");
         """;
     await using var cmd = new NpgsqlCommand(initSql, conn);
     await cmd.ExecuteNonQueryAsync();

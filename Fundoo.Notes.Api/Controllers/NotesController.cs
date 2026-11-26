@@ -86,6 +86,10 @@ public class NotesController : ControllerBase
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
 
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.CanEdit) return Forbid();
+
         var note = new Note
         {
             Id = id,
@@ -108,6 +112,10 @@ public class NotesController : ControllerBase
     {
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
+
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
 
         // Repository permanently deletes only if this note is in trash.
         return await _notes.DeleteAsync(id, userId.Value, ct)
@@ -160,6 +168,10 @@ public class NotesController : ControllerBase
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
 
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
         return await _notes.SetArchivedAsync(
             id, userId.Value, archived, ct)
             ? NoContent()
@@ -188,6 +200,10 @@ public class NotesController : ControllerBase
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
 
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
         return await _notes.SetTrashedAsync(
             id, userId.Value, trashed, ct)
             ? NoContent()
@@ -202,6 +218,10 @@ public class NotesController : ControllerBase
     {
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
+
+        var access = await _notes.GetAccessAsync(noteId, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
 
         return await _notes.AddLabelAsync(
             noteId, labelId, userId.Value, ct)
@@ -221,9 +241,89 @@ public class NotesController : ControllerBase
         var userId = CurrentUserId();
         if (userId == null) return Unauthorized();
 
+        var access = await _notes.GetAccessAsync(noteId, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
         return await _notes.RemoveLabelAsync(
             noteId, labelId, userId.Value, ct)
             ? NoContent()
             : NotFound();
+    }
+
+    [HttpGet("{id:guid}/collaborators")]
+    [ProducesResponseType(typeof(IEnumerable<NoteCollaborator>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCollaborators(
+        Guid id,
+        CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
+        return Ok(await _notes.GetCollaboratorsAsync(id, ct));
+    }
+
+    [HttpPut("{id:guid}/collaborators")]
+    [ProducesResponseType(typeof(NoteCollaborator), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ShareWithCollaborator(
+        Guid id,
+        [FromBody] ShareNoteRequest request,
+        CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        if (request.CollaboratorUserId == userId.Value)
+        {
+            return BadRequest(new { message = "Owner already has full access to this note." });
+        }
+
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
+        var permission = CollaboratorPermissions.Normalize(request.Permission);
+        var collaborator = await _notes.UpsertCollaboratorAsync(
+            id, userId.Value, request.CollaboratorUserId, permission, ct);
+
+        return collaborator == null ? NotFound() : Ok(collaborator);
+    }
+
+    [HttpDelete("{id:guid}/collaborators/{collaboratorUserId:guid}")]
+    public async Task<IActionResult> RemoveCollaborator(
+        Guid id,
+        Guid collaboratorUserId,
+        CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
+        return await _notes.RemoveCollaboratorAsync(id, userId.Value, collaboratorUserId, ct)
+            ? NoContent()
+            : NotFound();
+    }
+
+    [HttpGet("{id:guid}/sharing-history")]
+    [ProducesResponseType(typeof(IEnumerable<NoteSharingHistory>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSharingHistory(
+        Guid id,
+        CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var access = await _notes.GetAccessAsync(id, userId.Value, ct);
+        if (!access.Exists) return NotFound();
+        if (!access.IsOwner) return Forbid();
+
+        return Ok(await _notes.GetSharingHistoryAsync(id, ct));
     }
 }
